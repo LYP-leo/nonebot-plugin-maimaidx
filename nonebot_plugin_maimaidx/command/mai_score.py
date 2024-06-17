@@ -12,7 +12,7 @@ from ..libraries.maimaidx_player_score import *
 from ..libraries.maimaidx_update_plate import *
 
 # lvb50的优先级必须低于b50
-lvb50 = on_regex(r'^/?[a-zA-Z0-9]*\+?b50\s?.*$', re.IGNORECASE, priority=6)
+lvb50 = on_regex(r'^/?[a-zA-Z0-9-~]*\+?b50\s?.*$', re.IGNORECASE, priority=6)
 ap50 = on_command('ap50', aliases={'apb50'}, priority=5)
 fc50 = on_command('fc50', aliases={'fcb50'}, priority=5)
 
@@ -60,19 +60,45 @@ async def _(event: MessageEvent, match=RegexMatched()):
 
     # print('b50_cmd: ', b50_cmd)
 
-    if b50_cmd.isdigit() or (b50_cmd[:-1].isdigit() and b50_cmd[-1] == '+'):
-        await lvb50.finish(await generate(qqid, username, 'level', [b50_cmd]), reply_message=True)
-    elif 'lv' in b50_cmd:
-        level = b50_cmd.split('lv')[1]
-        await lvb50.finish(await generate(qqid, username, 'level', [level]), reply_message=True)
-    elif b50_cmd == 'fc':
-        await lvb50.finish(await generate(qqid, username, 'fc', ['fc', 'fcp', 'ap', 'app']), reply_message=True)
-    elif b50_cmd == 'fc+':
-        await lvb50.finish(await generate(qqid, username, 'fc', ['fcp', 'ap', 'app']), reply_message=True)
-    elif b50_cmd == 'ap':
-        await lvb50.finish(await generate(qqid, username, 'fc', ['ap', 'app']), reply_message=True)
-    elif b50_cmd == 'ap+':
-        await lvb50.finish(await generate(qqid, username, 'fc', ['app']), reply_message=True)
+    bef = None
+    aft = None
+    lv_list = []
+
+    if '-' in b50_cmd:
+        bef = b50_cmd.split('-')[0]
+        aft = b50_cmd.split('-')[1]
+    elif '~' in b50_cmd:
+        bef = b50_cmd.split('~')[0]
+        aft = b50_cmd.split('~')[1]
+
+    if bef and aft:
+        if 'lv' in bef:
+            bef = bef.split('lv')[1]
+        if 'lv' in aft:
+            aft = aft.split('lv')[1]
+        beg = levelList.index(bef)
+        end = levelList.index(aft)
+        for i in range(beg, end + 1):
+            lv_list.append(levelList[i])
+
+    # print('lv_list: ', lv_list)
+
+    if len(lv_list) != 0:
+        await lvb50.finish(await generate(qqid, username, 'level', lv_list), reply_message=True)
+    else:
+        if b50_cmd.isdigit() or (b50_cmd[:-1].isdigit() and b50_cmd[-1] == '+'):
+            await lvb50.finish(await generate(qqid, username, 'level', [b50_cmd]), reply_message=True)
+        elif 'lv' in b50_cmd:
+            level = b50_cmd.split('lv')[1]
+            await lvb50.finish(await generate(qqid, username, 'level', [level]), reply_message=True)
+        elif b50_cmd == 'fc':
+            await lvb50.finish(await generate(qqid, username, 'fc', ['fc', 'fcp', 'ap', 'app']), reply_message=True)
+        elif b50_cmd == 'fc+':
+            await lvb50.finish(await generate(qqid, username, 'fc', ['fcp', 'ap', 'app']), reply_message=True)
+        elif b50_cmd == 'ap':
+            await lvb50.finish(await generate(qqid, username, 'fc', ['ap', 'app']), reply_message=True)
+        elif b50_cmd == 'ap+':
+            await lvb50.finish(await generate(qqid, username, 'fc', ['app']), reply_message=True)
 
 
 @ap50.handle()

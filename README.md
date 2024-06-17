@@ -217,6 +217,9 @@
 6. `ap+b50 <@ / player>` : 查询所有ap+歌曲的b50成绩
 7. `14+b50 <@ / player>` : 查询所有lv14+歌曲的b50成绩, 其中 `14+` 可以替换成任意等级, 如14b50
 8. `lv14+b50 <@ / player>` : 与 `指令7` 效果相同
+9. `8-10b50 <@ / player>` : 查询等级为8、8+、9、9+、10歌曲的b50成绩，其中 `8` 和 `10` 可以替换成任意等级
+10. `8~10b50 <@ / player>` : 与 `指令9` 效果相同
+11. `lv8-lv10b50 <@ / player>` : 与 `指令9` 效果相同
 
 其余使用说明：
 ![img](https://raw.githubusercontent.com/Yuri-YuzuChaN/nonebot-plugin-maimaidx/master/nonebot_plugin_maimaidx/maimaidxhelp.png)
