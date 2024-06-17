@@ -9,7 +9,7 @@
 <a href='./LICENSE'>
     <img src='https://img.shields.io/github/license/Yuri-YuzuChaN/nonebot-plugin-maimaidx' alt='license'>
 </a>
-<img src='https://img.shields.io/badge/python-3.8+-blue.svg' alt='python'>
+<img src='https://img.shields.io/badge/python-3.9+-blue.svg' alt='python'>
 </div>
 
 ## 重要更新
