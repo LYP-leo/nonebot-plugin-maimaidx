@@ -207,7 +207,7 @@
 
 ## 指令
 
-如果没有开发者Token，则无法获取ap50的dx分。  
+如果没有开发者Token，则无法获取ap50、fc50的dx分。  
 其余使用说明：
 
 ![img](https://raw.githubusercontent.com/Yuri-YuzuChaN/nonebot-plugin-maimaidx/master/nonebot_plugin_maimaidx/maimaidxhelp.png)
