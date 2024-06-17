@@ -11,6 +11,9 @@ from ..libraries.maimaidx_music_info import *
 from ..libraries.maimaidx_player_score import *
 from ..libraries.maimaidx_update_plate import *
 
+ap50    = on_command('ap50', aliases={'apb50'}, priority=5)
+fc50    = on_command('fc50', aliases={'fcb50'}, priority=5)
+
 best50  = on_command('b50', aliases={'B50'}, priority=5)
 minfo   = on_command('minfo', aliases={'minfo', 'Minfo', 'MINFO', 'info', 'Info', 'INFO'}, priority=5)
 ginfo   = on_command('ginfo', aliases={'ginfo', 'Ginfo', 'GINFO'}, priority=5)
@@ -21,6 +24,24 @@ def get_at_qq(message: Message) -> Optional[int]:
     for item in message:
         if isinstance(item, MessageSegment) and item.type == 'at' and item.data['qq'] != 'all':
             return int(item.data['qq'])
+
+
+@ap50.handle()
+async def _(event: MessageEvent, matcher: Matcher, arg: Message = CommandArg()):
+    qqid = get_at_qq(arg) or event.user_id
+    username = arg.extract_plain_text().split()
+    if _q := get_at_qq(arg):
+        qqid = _q
+    await matcher.finish(await generate(qqid, username, ['ap', 'app']), reply_message=True)
+
+
+@fc50.handle()
+async def _(event: MessageEvent, matcher: Matcher, arg: Message = CommandArg()):
+    qqid = get_at_qq(arg) or event.user_id
+    username = arg.extract_plain_text().split()
+    if _q := get_at_qq(arg):
+        qqid = _q
+    await matcher.finish(await generate(qqid, username, ['fc', 'fcp', 'ap', 'app']), reply_message=True)
 
 
 @best50.handle()
