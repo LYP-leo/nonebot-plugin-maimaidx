@@ -1,29 +1,78 @@
 import re
 from textwrap import dedent
 
-from nonebot import on_command
+from nonebot import on_command, on_regex
 from nonebot.adapters.onebot.v11 import Message, MessageEvent
 from nonebot.matcher import Matcher
-from nonebot.params import CommandArg
+from nonebot.params import CommandArg, Endswith, RegexMatched
 
 from ..libraries.image import to_bytes_io
 from ..libraries.maimaidx_music_info import *
 from ..libraries.maimaidx_player_score import *
 from ..libraries.maimaidx_update_plate import *
 
-ap50    = on_command('ap50', aliases={'apb50'}, priority=5)
-fc50    = on_command('fc50', aliases={'fcb50'}, priority=5)
+# lvb50的优先级必须低于b50
+lvb50 = on_regex(r'^/?[a-zA-Z0-9]*\+?b50\s?.*$', re.IGNORECASE, priority=6)
+ap50 = on_command('ap50', aliases={'apb50'}, priority=5)
+fc50 = on_command('fc50', aliases={'fcb50'}, priority=5)
 
-best50  = on_command('b50', aliases={'B50'}, priority=5)
-minfo   = on_command('minfo', aliases={'minfo', 'Minfo', 'MINFO', 'info', 'Info', 'INFO'}, priority=5)
-ginfo   = on_command('ginfo', aliases={'ginfo', 'Ginfo', 'GINFO'}, priority=5)
-score   = on_command('分数线', priority=5)
+best50 = on_command('b50', aliases={'B50'}, priority=5)
+minfo = on_command('minfo', aliases={'minfo', 'Minfo', 'MINFO', 'info', 'Info', 'INFO'}, priority=5)
+ginfo = on_command('ginfo', aliases={'ginfo', 'Ginfo', 'GINFO'}, priority=5)
+score = on_command('分数线', priority=5)
 
+command_list = ['/b50', '/B50', '/ap50', '/apb50', '/fc50', '/fcb50']
 
 def get_at_qq(message: Message) -> Optional[int]:
     for item in message:
         if isinstance(item, MessageSegment) and item.type == 'at' and item.data['qq'] != 'all':
             return int(item.data['qq'])
+
+
+@lvb50.handle()
+async def _(event: MessageEvent, match=RegexMatched()):
+    match_str = match.group(0)
+    string_list = match_str.split()
+    length = len(string_list)
+
+    command = string_list[0]
+    arg: Message = Message()
+    if length > 1:
+        arg = Message(string_list[1])
+
+    # print('command: ', command)
+    # print('arg: ', arg)
+
+    if command in command_list:
+        return
+
+    qqid = get_at_qq(arg) or event.user_id
+
+    username_list = arg.extract_plain_text().split()
+    username = None
+    if len(username_list) >= 1:
+        username = username_list[0]
+
+    if _q := get_at_qq(arg):
+        qqid = _q
+
+    b50_cmd = command.split('b50')[0]
+
+    # print('b50_cmd: ', b50_cmd)
+
+    if b50_cmd.isdigit() or (b50_cmd[:-1].isdigit() and b50_cmd[-1] == '+'):
+        await lvb50.finish(await generate(qqid, username, 'level', [b50_cmd]), reply_message=True)
+    elif 'lv' in b50_cmd:
+        level = b50_cmd.split('lv')[1]
+        await lvb50.finish(await generate(qqid, username, 'level', [level]), reply_message=True)
+    elif b50_cmd == 'fc':
+        await lvb50.finish(await generate(qqid, username, 'fc', ['fc', 'fcp', 'ap', 'app']), reply_message=True)
+    elif b50_cmd == 'fc+':
+        await lvb50.finish(await generate(qqid, username, 'fc', ['fcp', 'ap', 'app']), reply_message=True)
+    elif b50_cmd == 'ap':
+        await lvb50.finish(await generate(qqid, username, 'fc', ['ap', 'app']), reply_message=True)
+    elif b50_cmd == 'ap+':
+        await lvb50.finish(await generate(qqid, username, 'fc', ['app']), reply_message=True)
 
 
 @ap50.handle()
@@ -32,7 +81,7 @@ async def _(event: MessageEvent, matcher: Matcher, arg: Message = CommandArg()):
     username = arg.extract_plain_text().split()
     if _q := get_at_qq(arg):
         qqid = _q
-    await matcher.finish(await generate(qqid, username, ['ap', 'app']), reply_message=True)
+    await matcher.finish(await generate(qqid, username, 'fc', ['ap', 'app']), reply_message=True)
 
 
 @fc50.handle()
@@ -41,7 +90,7 @@ async def _(event: MessageEvent, matcher: Matcher, arg: Message = CommandArg()):
     username = arg.extract_plain_text().split()
     if _q := get_at_qq(arg):
         qqid = _q
-    await matcher.finish(await generate(qqid, username, ['fc', 'fcp', 'ap', 'app']), reply_message=True)
+    await matcher.finish(await generate(qqid, username, 'fc', ['fc', 'fcp', 'ap', 'app']), reply_message=True)
 
 
 @best50.handle()

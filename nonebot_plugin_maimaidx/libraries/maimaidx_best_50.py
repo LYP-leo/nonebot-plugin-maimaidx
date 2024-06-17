@@ -324,10 +324,12 @@ def generateAchievementList(ds: float):
     return _achievementList
 
 
-# mode 为匹配的字符串
-# 如希望匹配所有 fc / fc+ 的歌曲，则 mode = ['fc', 'fcp', 'ap', 'app']
-# 如希望匹配所有 ap / ap+ 的歌曲，则 mode = ['ap', 'app']
-async def get_songs_by_ach(mode, obj, qqid: int, username: Optional[str]):
+# mode 为匹配的项目
+# mode_str 为匹配的字符串
+# 如希望匹配所有 fc / fc+ 的歌曲，则 mode = 'fc', mode_str = ['fc', 'fcp', 'ap', 'app']
+# 如希望匹配所有 ap / ap+ 的歌曲，则 mode = 'fc', mode_str = ['ap', 'app']
+# 如希望匹配所有等级为 13 的歌曲，则 mode = 'level', mode_str = ['13']
+async def get_songs_by_ach(mode, mode_str, obj, qqid: int, username: Optional[str]):
     # version 为所有版本
     version = list(set(_v for _v in list(plate_to_version.values())))
 
@@ -342,7 +344,7 @@ async def get_songs_by_ach(mode, obj, qqid: int, username: Optional[str]):
 
     for _d in data['verlist']:
 
-        flag = _d['fc'] in mode
+        flag = _d[mode] in mode_str
         if not flag:
             continue
 
@@ -402,7 +404,7 @@ async def get_songs_by_ach(mode, obj, qqid: int, username: Optional[str]):
     return obj
 
 
-async def generate(qqid: Optional[int] = None, username: Optional[str] = None, mode: list[str] = None) -> str:
+async def generate(qqid: Optional[int] = None, username: Optional[str] = None, mode: str = None, mode_str: list[str] = None) -> str:
     try:
         if username:
             qqid = None
@@ -418,7 +420,7 @@ async def generate(qqid: Optional[int] = None, username: Optional[str] = None, m
 
         if mode:
             # obj在get_songs_by_ach函数中被修改
-            await get_songs_by_ach(mode, obj, qqid, username)
+            await get_songs_by_ach(mode, mode_str, obj, qqid, username)
 
         mai_info = UserInfo(**obj)
         draw_best = DrawBest(mai_info, qqid)
