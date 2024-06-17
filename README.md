@@ -207,7 +207,16 @@
 
 ## 指令
 
-如果没有开发者Token，则无法获取ap50、fc50的dx分。  
-其余使用说明：
+由于没有开发者Token，因此暂时无法获取dx分。
 
+1. `/fcb50 <@ / player>` : 查询所有fc歌曲的b50成绩
+2. `/apb50 <@ / player>` : 查询所有ap歌曲的b50成绩
+3. `fcb50 <@ / player>` : 与 `指令1` 效果相同
+4. `fc+b50 <@ / player>` : 查询所有fc+歌曲的b50成绩
+5. `apb50 <@ / player>` : 与 `指令2` 效果相同
+6. `ap+b50 <@ / player>` : 查询所有ap+歌曲的b50成绩
+7. `14+b50 <@ / player>` : 查询所有lv14+歌曲的b50成绩, 其中 `14+` 可以替换成任意等级, 如14b50
+8. `lv14+b50 <@ / player>` : 与 `指令7` 效果相同
+
+其余使用说明：
 ![img](https://raw.githubusercontent.com/Yuri-YuzuChaN/nonebot-plugin-maimaidx/master/nonebot_plugin_maimaidx/maimaidxhelp.png)
