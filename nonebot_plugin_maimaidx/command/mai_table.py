@@ -9,15 +9,16 @@ from ..libraries.maimaidx_music_info import *
 from ..libraries.maimaidx_player_score import *
 from ..libraries.maimaidx_update_plate import *
 
-update_table            = on_fullmatch('更新定数表', priority=5, permission=SUPERUSER)
-update_plate            = on_fullmatch('更新完成表', priority=5, permission=SUPERUSER)
-rating_table_pfm        = on_regex(r'^([0-9]+\+?)([apfcp\++])?完成表$', re.IGNORECASE, priority=5)
-plate_table_pfm         = on_regex(r'^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉熊華华爽煌舞霸星宙祭祝双])([極极将舞神者]舞?)完成表$', priority=5)
-rating_table            = on_regex(r'([0-9]+\+?)定数表', priority=5)
-rise_score              = on_regex(r'^我要在?([0-9]+\+?)?上([0-9]+)分\s?(.+)?', priority=5)
-plate_process           = on_regex(r'^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉熊華华爽煌舞霸星宙祭祝双])([極极将舞神者]舞?)进度\s?(.+)?', priority=5)
-level_process           = on_regex(r'^([0-9]+\+?)\s?([abcdsfxp\+]+)\s?([\u4e00-\u9fa5]+)?\s?进度\s?([0-9]+)?(.+)?', re.IGNORECASE, priority=5)
-level_achievement_list  = on_regex(r'^([0-9]+\.?[0-9]?\+?)\s?分数列表\s?([0-9]+)?\s?(.+)?', priority=5)
+update_table = on_fullmatch('更新定数表', priority=5, permission=SUPERUSER)
+update_plate = on_fullmatch('更新完成表', priority=5, permission=SUPERUSER)
+rating_table_pfm = on_regex(r'^([0-9]+\+?)([apfcp\++])?完成表$', re.IGNORECASE, priority=5)
+plate_table_pfm = on_regex(r'^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉熊華华爽煌舞霸星宙祭祝双])([極极将舞神者]舞?)完成表$', priority=5)
+rating_table = on_regex(r'([0-9]+\+?)定数表', priority=5)
+rise_score = on_regex(r'^我要在?([0-9]+\+?)?上([0-9]+)分\s?(.+)?', priority=5)
+plate_process = on_regex(r'^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉熊華华爽煌舞霸星宙祭祝双])([極极将舞神者]舞?)进度\s?(.+)?', priority=5)
+level_process = on_regex(r'^([0-9]+\+?)\s?([abcdsfxp\+]+)\s?([\u4e00-\u9fa5]+)?\s?进度\s?([0-9]+)?(.+)?', re.IGNORECASE, priority=5)
+level_achievement_list = on_regex(r'^([0-9]+\.?[0-9]?\+?)\s?分数列表\s?([0-9]+)?\s?(.+)?', priority=5)
+level_achievement_list_full = on_regex(r'^([0-9]+\.?[0-9]?\+?)\s?全分数列表\s?([0-9]+)?\s?(.+)?', priority=5)
 
 
 def get_at_qq(message: Message) -> Optional[int]:
@@ -173,4 +174,25 @@ async def _(event: MessageEvent, match = RegexMatched()):
             await level_achievement_list.finish('无此等级', reply_message=True)
 
     data = await level_achievement_list_data(qqid, username, rating, int(page) if page else 1)
+    await level_achievement_list.finish(data, reply_message=True)
+
+
+@level_achievement_list_full.handle()
+async def _(event: MessageEvent, match=RegexMatched()):
+    qqid = get_at_qq(event.get_message()) or event.user_id
+
+    rating = match.group(1)
+    page = match.group(2)
+    username = match.group(3)
+
+    try:
+        if '.' in rating:
+            rating = round(float(rating), 1)
+        elif rating not in levelList:
+            await level_achievement_list.finish('无此等级', reply_message=True)
+    except ValueError:
+        if rating not in levelList:
+            await level_achievement_list.finish('无此等级', reply_message=True)
+
+    data = await level_achievement_list_data(qqid, username, rating)
     await level_achievement_list.finish(data, reply_message=True)

@@ -1,3 +1,4 @@
+import math
 import time
 import traceback
 
@@ -578,6 +579,22 @@ class DrawScoreList(Draw):
         im = bg.crop((0, y, bg_w, bg_h))
         return im
 
+    def image_crop(num: int, name: str) -> Image.Image:
+        """
+        - `height`: 图片高度
+
+        返回元组 `(缩放图片, 坐标x, 坐标y)`
+        """
+        # bg = Image.open(maimaidir/name).convert('RGBA').resize(2200, 30000)
+        bg = Image.new("RGBA", (2200, 30000), color=name)
+        bg_w, bg_h = bg.size
+        fix_height = 350
+        score_height = 165 * 5 * num
+        bg_height = fix_height + score_height
+        y = bg_h - bg_height
+        im = bg.crop((0, y, bg_w, bg_h))
+        return im
+
     async def draw_scorelist(self, data: Union[List[PlayInfoDefault], List[PlayInfoDev]], page: int,
                              end_page: int) -> Image.Image:
         datalen = len(data)
@@ -591,6 +608,25 @@ class DrawScoreList(Draw):
             self._tb.draw(1100, 105 + y, 50, f'No.{start} - No.{start + len(newdata[n * 20: (n + 1) * 20]) - 1}', (247, 75, 75, 255), 'mm')
             await self.whiledraw(newdata[n * 20: (n + 1) * 20], True, 200 + y)
         pagemsg = f'共计「{datalen}」个成绩，展示第「{(page - 1) * self.fix_num + 1}-{self.fix_num * (page - 1) + len(newdata)}」个，当前第「{page} / {end_page}」页'
+        self._im.alpha_composite(self.design_bg, (440, size[1] - 217))
+        self._sy.draw(1100, size[1] - 160, 35, pagemsg, (5, 100, 150, 255), 'mm')
+        return self._im
+
+
+    async def draw_scorelist(self, data: Union[List[PlayInfoDefault], List[PlayInfoDev]]) -> Image.Image:
+        datalen = len(data)
+        newdata = data
+        size = self._im.size
+        r = len(newdata) // 20 + (0 if len(newdata) % 20 == 0 else 1)
+        for n in range(r):
+            y = 210 * 4 * n
+            self._im.alpha_composite(self.title_bg, (800, 50 + y))
+            start = 20 * n + 1
+            self._tb.draw(1100, 105 + y, 50, f'No.{start} - No.{start + len(newdata[n * 20: (n + 1) * 20]) - 1}', (247, 75, 75, 255), 'mm')
+            await self.whiledraw(newdata[n * 20: (n + 1) * 20], True, 200 + y)
+
+        pagemsg = f'共计「{datalen}」个成绩'
+
         self._im.alpha_composite(self.design_bg, (440, size[1] - 217))
         self._sy.draw(1100, size[1] - 160, 35, pagemsg, (5, 100, 150, 255), 'mm')
         return self._im
@@ -649,6 +685,57 @@ async def level_achievement_list_data(
 
         sc = DrawScoreList(image)
         im = await sc.draw_scorelist(newdata, page, end_page_num)
+        msg = MessageSegment.image(image_to_base64(im.resize((1400, int(im.size[1] * round(1400 / 2200, 2))))))
+    except UserNotFoundError as e:
+        msg = str(e)
+    except UserDisabledQueryError as e:
+        msg = str(e)
+    except Exception as e:
+        log.error(traceback.format_exc())
+        msg = f'未知错误：{type(e)}\n请联系Bot管理员'
+    return msg
+
+
+
+async def level_achievement_list_data(qqid: int, username: Optional[str], rating: Union[str, float]) -> Union[str, Image.Image]:
+    """
+    查看分数列表
+
+    - `qqid` : 用户QQ
+    - `username` : 查分器用户名
+    - `rating` : 定数
+
+    """
+
+    try:
+        data: Union[List[PlayInfoDefault], List[PlayInfoDev]] = []
+        if maiconfig.maimaidxtoken:
+            obj = await maiApi.query_user_dev(qqid=qqid, username=username)
+            data = [PlayInfoDev(**_d) for _d in obj['records']]
+        else:
+            version = list(set(_v for _v in list(plate_to_version.values())))
+            obj = await maiApi.query_user('plate', qqid=qqid, username=username, version=version)
+            for _d in obj['verlist']:
+                music = mai.total_list.by_id(_d['id'])
+                ds: float = music.ds[_d['level_index']]
+                a: float = _d['achievements']
+                ra, rate = computeRa(ds, a, israte=True)
+                data.append(PlayInfoDefault(**_d, ds=ds, ra=ra, rate=rate))
+
+        if isinstance(rating, str):
+            newdata = sorted(list(filter(lambda x: x.level == rating, data)), key=lambda z: z.achievements, reverse=True)
+        else:
+            newdata = sorted(list(filter(lambda x: x.ds == rating, data)), key=lambda z: z.achievements, reverse=True)
+
+        data_num = len(newdata)
+        line_num = math.ceil(data_num / 20)
+        remain_num = data_num % 20
+        if remain_num > 10:
+            line_num = line_num + 1
+        image = DrawScoreList.image_crop(line_num, 'white')
+
+        sc = DrawScoreList(image)
+        im = await sc.draw_scorelist(newdata)
         msg = MessageSegment.image(image_to_base64(im.resize((1400, int(im.size[1] * round(1400 / 2200, 2))))))
     except UserNotFoundError as e:
         msg = str(e)
