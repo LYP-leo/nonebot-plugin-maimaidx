@@ -3,7 +3,6 @@
 </div>
 
 <div align='center'>
-</div>
 
 # nonebot-plugin-maimaidx
 
@@ -11,6 +10,7 @@
     <img src='https://img.shields.io/github/license/Yuri-YuzuChaN/nonebot-plugin-maimaidx' alt='license'>
 </a>
 <img src='https://img.shields.io/badge/python-3.9+-blue.svg' alt='python'>
+</div>
 
 ## 运行本bot需要注意的内容
 
