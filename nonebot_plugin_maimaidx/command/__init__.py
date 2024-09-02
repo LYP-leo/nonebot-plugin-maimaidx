@@ -4,3 +4,5 @@ from .mai_guess import *
 from .mai_score import *
 from .mai_search import *
 from .mai_table import *
+
+from .mai_b50 import *

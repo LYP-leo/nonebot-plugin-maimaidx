@@ -275,6 +275,7 @@ async def get_music_alias_list() -> AliasList:
         local_alias_data: Dict[str, Dict[str, Union[str, List[str]]]] = await openfile(local_alias_file)
     else:
         local_alias_data = {}
+    alias_data: List[Dict[str, Union[int, str, List[str]]]] = []
     try:
         alias_data = await maiApi.get_alias()
         await writefile(alias_file, alias_data)
@@ -295,7 +296,7 @@ async def get_music_alias_list() -> AliasList:
             raise ValueError
 
     total_alias_list = AliasList()
-    for _a in alias_data:
+    for _a in filter(lambda x: mai.total_list.by_id(x['SongID']), alias_data):
         if (song_id := str(_a['SongID'])) in local_alias_data:
             _a['Alias'].extend(local_alias_data[song_id])
         total_alias_list.append(Alias(**_a))
@@ -365,23 +366,23 @@ class Guess:
         """开始猜歌"""
         self.Group[gid] = await self.guessData()
 
-    async def startpic(self, gid: str):
+    async def startpic(self, gid: str, difficulties):
         """开始猜曲绘"""
-        self.Group[gid] = await self.guesspicdata()
+        self.Group[gid] = await self.guesspicdata(difficulties)
 
-    async def pic(self, music: Music) -> Image.Image:
+    async def pic(self, music: Music, difficulties: int) -> Image.Image:
         """裁切曲绘"""
         im = Image.open(await maiApi.download_music_pictrue(music.id))
         w, h = im.size
-        w2, h2 = int(w / 3), int(h / 3)
-        l, u = random.randrange(0, int(2 * w / 3)), random.randrange(0, int(2 * h / 3))
+        w2, h2 = int(w / difficulties), int(h / difficulties)
+        l, u = random.randrange(0, int(2 * w / difficulties)), random.randrange(0, int(2 * h / difficulties))
         im = im.crop((l, u, l + w2, u + h2))
         return im
 
-    async def guesspicdata(self) -> GuessPicData:
+    async def guesspicdata(self, difficulties) -> GuessPicData:
         """猜曲绘数据"""
         music = random.choice(mai.guess_data)
-        pic = await self.pic(music)
+        pic = await self.pic(music, difficulties)
         answer = mai.total_alias_list.by_id(music.id)[0].Alias
         answer.append(music.id)
         return GuessPicData(music=music, img=image_to_base64(pic), answer=answer, end=False)

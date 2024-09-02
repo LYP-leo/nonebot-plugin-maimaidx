@@ -1,14 +1,16 @@
 import asyncio
+import re
+
 from textwrap import dedent
 
-from nonebot import on_command, on_endswith, on_message
+from nonebot import on_command, on_endswith, on_message, on_regex
 from nonebot.adapters.onebot.v11 import (
     GROUP_ADMIN,
     GROUP_OWNER,
     GroupMessageEvent,
     Message,
 )
-from nonebot.params import CommandArg
+from nonebot.params import CommandArg, RegexMatched
 from nonebot.matcher import Matcher
 
 from ..libraries.maimaidx_music import guess
@@ -21,7 +23,7 @@ def is_now_playing_guess_music(event: GroupMessageEvent) -> bool:
     return str(event.group_id) in guess.Group
 
 guess_music_start   = on_command('猜歌', priority=5)
-guess_music_pic     = on_command('猜曲绘', priority=5)
+guess_music_pic     = on_regex(r'(简单|普通|困难)?猜曲绘', priority=5)
 guess_music_solve   = on_message(rule=is_now_playing_guess_music, priority=5)
 guess_music_reset   = on_command('重置猜歌', priority=5)
 guess_music_enable  = on_command('开启mai猜歌', priority=5, permission=GROUP_ADMIN | GROUP_OWNER)
@@ -68,14 +70,33 @@ async def _(event: GroupMessageEvent):
 
 
 @guess_music_pic.handle()
-async def _(event: GroupMessageEvent):
+async def _(event: GroupMessageEvent, match = RegexMatched()):
+    match_str = match.group(0)
+    string_list = match_str.split("猜曲绘")
+    
+    command_str = ""
+
+    if string_list[0] == "":
+        command_str = "简单"
+    else:
+        command_str = string_list[0]
+
+    difficulties = {
+        "": 3,
+        "简单": 3,
+        "普通": 5,
+        "困难": 7
+    }
+
     gid = str(event.group_id)
     if gid not in guess.config['enable']:
         await guess_music_pic.finish('该群已关闭猜歌功能，开启请输入 开启mai猜歌', reply_message=True)
     if gid in guess.Group:
         await guess_music_pic.finish('该群已有正在进行的猜歌或猜曲绘', reply_message=True)
-    await guess.startpic(gid)
+    await guess.startpic(gid, difficulties[command_str])
+
     await guess_music_pic.send(
+        MessageSegment.text(f'猜曲绘{command_str}模式\n') + 
         MessageSegment.text('以下裁切图片是哪首谱面的曲绘：\n') +
         MessageSegment.image(guess.Group[gid].img) +
         MessageSegment.text('请在30s内输入答案')

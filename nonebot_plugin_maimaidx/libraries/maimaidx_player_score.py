@@ -1,6 +1,7 @@
 import math
 import time
 import traceback
+from textwrap import dedent
 
 import pyecharts.options as opts
 from loguru import logger as log
@@ -10,11 +11,13 @@ from pyecharts.charts import Pie
 from pyecharts.render import make_snapshot
 from snapshot_phantomjs import snapshot
 
+from nonebot_plugin_maimaidx.libraries.maimaidx_music_info import draw_music_info
+
 from ..config import *
 from .image import image_to_base64, text_to_image
 from .maimaidx_api_data import *
-from .maimaidx_best_50 import Draw, computeRa, generateAchievementList
-from .maimaidx_model import Music, PlanInfo, PlayInfoDefault, PlayInfoDev, RaMusic
+from .maimaidx_best_50 import Draw, changeColumnWidth, coloumWidth, computeRa, dxScore, generateAchievementList, get_chartInfo_b50, get_songs_by_ach
+from .maimaidx_model import ChartInfo, Music, PlanInfo, PlayInfoDefault, PlayInfoDev, RaMusic, UserInfo
 from .maimaidx_music import mai
 
 realAchievementList = {}
@@ -79,7 +82,7 @@ async def music_global_data(music: Music, level_index: int) -> MessageSegment:
     return MessageSegment.image(image_to_base64(im))
 
 
-async def rise_score_data(qqid: int, username: Optional[str], rating: str, score: str, nickname: Optional[str] = None) -> str:
+async def rise_score_data(qqid: int, username: Optional[str], rating: str, score: str) -> str:
     """
     上分数据
     
@@ -140,7 +143,7 @@ async def rise_score_data(qqid: int, username: Optional[str], rating: str, score
         if len(music_dx_list) == 0 and len(music_sd_list) == 0:
             return '没有找到这样的乐曲'
 
-        appellation = nickname if nickname else '您'
+        appellation = username if username else '您'
         result = ''
         if len(music_sd_list) != 0:
             result += f'为{appellation}推荐以下标准乐曲：\n'
@@ -163,9 +166,9 @@ async def rise_score_data(qqid: int, username: Optional[str], rating: str, score
     return msg
 
 
-async def player_plate_data(qqid: int, username: Optional[str], ver: str, plan: str, nickname: Optional[str]) -> str:
+async def player_plate_data(qqid: int, username: Optional[str], ver: str, plan: str) -> str:
     """
-    查看将牌
+    查看牌子
     
     - `qqid` : 用户QQ
     - `username` : 查分器用户名
@@ -254,7 +257,7 @@ async def player_plate_data(qqid: int, username: Optional[str], ver: str, plan: 
                     song_remain_re_master.append([song['id'], song['level_index']])
                 song_played.append([song['id'], song['level_index']])
         for music in mai.total_list:
-            if ver == '真' and music.title == 'ジングルベル':
+            if music.id in ignore_music:
                 continue
             if music.basic_info.version in version:
                 if [int(music.id), 0] not in song_played:
@@ -277,16 +280,18 @@ async def player_plate_data(qqid: int, username: Optional[str], ver: str, plan: 
             if music.ds[song[1]] > 13.6:
                 song_remain_difficult.append([music.id, music.title, diffs[song[1]], music.ds[song[1]], song[1]])
 
-        appellation = nickname if nickname else '您'
+        appellation = username if username else '您'
 
-        msg = f'''{appellation}的{ver}{plan}剩余进度如下：
-Basic剩余{len(song_remain_basic)}首
-Advanced剩余{len(song_remain_advanced)}首
-Expert剩余{len(song_remain_expert)}首
-Master剩余{len(song_remain_master)}首
-'''
+        msg = dedent(f'''\
+            {appellation}的{ver}{plan}剩余进度如下：
+            Basic剩余{len(song_remain_basic)}首
+            Advanced剩余{len(song_remain_advanced)}首
+            Expert剩余{len(song_remain_expert)}首
+            Master剩余{len(song_remain_master)}首
+        ''')
         song_remain: list[list] = song_remain_basic + song_remain_advanced + song_remain_expert + song_remain_master + song_remain_re_master
         song_record = [[s['id'], s['level_index']] for s in verlist]
+        fs = ['fsd', 'fdx', 'fsdp', 'fdxp']
         if ver in ['舞', '霸']:
             msg += f'Re:Master剩余{len(song_remain_re_master)}首\n'
         if len(song_remain_difficult) > 0:
@@ -299,11 +304,11 @@ Master剩余{len(song_remain_master)}首
                         if plan in ['将', '者']:
                             self_record = str(verlist[record_index]['achievements']) + '%'
                         elif plan in ['極', '极', '神']:
-                            if verlist[record_index]['fc']:
-                                self_record = comboRank[combo_rank.index(verlist[record_index]['fc'])].upper()
+                            if fc := verlist[record_index]['fc']:
+                                self_record = comboRank[combo_rank.index(fc)].upper()
                         elif plan == '舞舞':
-                            if verlist[record_index]['fs']:
-                                self_record = syncRank[sync_rank.index(verlist[record_index]['fs'])].upper()
+                            if (sync := verlist[record_index]['fs']) and sync in fs:
+                                self_record = syncRank[sync_rank.index(sync)].upper()
                     msg += f'No.{i + 1} {s[0]}. {s[1]} {s[2]} {s[3]} {self_record}'.strip() + '\n'
                 if len(song_remain_difficult) > 10:
                     msg = MessageSegment.image(image_to_base64(text_to_image(msg.strip())))
@@ -477,9 +482,9 @@ async def level_process_data(
         elif plan.lower() in comboRank:
             plannum = 1
             planlist[1] = comboRank.index(plan.lower())
-        elif plan.lower() in syncRank2:
+        elif plan.lower() in syncRank:
             plannum = 2
-            planlist[2] = syncRank2.index(plan.lower())
+            planlist[2] = syncRank.index(plan.lower())
 
         for _d in obj:
             info = calc(_d)
@@ -492,7 +497,7 @@ async def level_process_data(
                     _p = music[song_id]
                 if (plannum == 0 and info.achievements >= planlist[plannum]) \
                         or (plannum == 1 and info.fc and combo_rank.index(info.fc) >= planlist[plannum]) \
-                        or (plannum == 2 and info.fs and (sync_rank2.index(info.fs) >= planlist[plannum] if info.fs and info.fs in sync_rank2 else sync_rank_p.index(info.fs) >= planlist[plannum])):
+                        or (plannum == 2 and info.fs and (sync_rank.index(info.fs) >= planlist[plannum] if info.fs and info.fs in sync_rank else sync_rank_p.index(info.fs) >= planlist[plannum])):
                     _p.completed = info
                 else:
                     _p.unfinished = info
@@ -579,7 +584,7 @@ class DrawScoreList(Draw):
         im = bg.crop((0, y, bg_w, bg_h))
         return im
 
-    def image_crop(num: int, name: str) -> Image.Image:
+    def image_crop_full(num: int, name: str) -> Image.Image:
         """
         - `height`: 图片高度
 
@@ -595,8 +600,7 @@ class DrawScoreList(Draw):
         im = bg.crop((0, y, bg_w, bg_h))
         return im
 
-    async def draw_scorelist(self, data: Union[List[PlayInfoDefault], List[PlayInfoDev]], page: int,
-                             end_page: int) -> Image.Image:
+    async def draw_scorelist(self, data: Union[List[PlayInfoDefault], List[PlayInfoDev]], page: int, end_page: int) -> Image.Image:
         datalen = len(data)
         newdata = data[(page - 1) * self.fix_num: page * self.fix_num]
         size = self._im.size
@@ -613,7 +617,7 @@ class DrawScoreList(Draw):
         return self._im
 
 
-    async def draw_scorelist(self, data: Union[List[PlayInfoDefault], List[PlayInfoDev]]) -> Image.Image:
+    async def draw_scorelist_full(self, data: Union[List[PlayInfoDefault], List[PlayInfoDev]]) -> Image.Image:
         datalen = len(data)
         newdata = data
         size = self._im.size
@@ -632,12 +636,7 @@ class DrawScoreList(Draw):
         return self._im
 
 
-async def level_achievement_list_data(
-    qqid: int, 
-    username: Optional[str], 
-    rating: Union[str, float], 
-    page: int = 1
-) -> Union[str, Image.Image]:
+async def level_achievement_list_data(qqid: int, username: Optional[str], rating: Union[str, float], page: int = 1) -> Union[str, Image.Image]:
     """
     查看分数列表
 
@@ -696,8 +695,7 @@ async def level_achievement_list_data(
     return msg
 
 
-
-async def level_achievement_list_data(qqid: int, username: Optional[str], rating: Union[str, float]) -> Union[str, Image.Image]:
+async def level_achievement_list_data_full(qqid: int, username: Optional[str], rating: Union[str, float]) -> Union[str, Image.Image]:
     """
     查看分数列表
 
@@ -732,10 +730,10 @@ async def level_achievement_list_data(qqid: int, username: Optional[str], rating
         remain_num = data_num % 20
         if remain_num > 10:
             line_num = line_num + 1
-        image = DrawScoreList.image_crop(line_num, 'white')
+        image = DrawScoreList.image_crop_full(line_num, 'white')
 
         sc = DrawScoreList(image)
-        im = await sc.draw_scorelist(newdata)
+        im = await sc.draw_scorelist_full(newdata)
         msg = MessageSegment.image(image_to_base64(im.resize((1400, int(im.size[1] * round(1400 / 2200, 2))))))
     except UserNotFoundError as e:
         msg = str(e)
@@ -758,16 +756,17 @@ async def rating_ranking_data(name: Optional[str], page: Optional[int]) -> str:
         rank_data = await maiApi.rating_ranking()
 
         sorted_rank_data = sorted(rank_data, key=lambda r: r['ra'], reverse=True)
+        _time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         if name:
             if name in [r['username'].lower() for r in sorted_rank_data]:
                 rank_index = [r['username'].lower() for r in sorted_rank_data].index(name) + 1
                 nickname = sorted_rank_data[rank_index - 1]['username']
-                data = f'截止至 {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}\n玩家 {nickname} 在Diving Fish网站已注册用户ra排行第{rank_index}'
+                data = f'截止至 {_time}\n玩家 {nickname} 在Diving Fish网站已注册用户ra排行第{rank_index}'
             else:
                 data = '未找到该玩家'
         else:
             user_num = len(sorted_rank_data)
-            msg = f'截止至 {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}，Diving Fish网站已注册用户ra排行：\n'
+            msg = f'截止至 {_time}，Diving Fish网站已注册用户ra排行：\n'
             if page * 50 > user_num:
                 page = user_num // 50 + 1
             end = page * 50 if page * 50 < user_num else user_num
@@ -779,3 +778,341 @@ async def rating_ranking_data(name: Optional[str], page: Optional[int]) -> str:
         log.error(traceback.format_exc())
         data = f'未知错误：{type(e)}\n请联系Bot管理员'
     return data
+
+
+# 获得指定长度排序后的b50内chartInfo列表
+async def get_chart_list(qqid: int, username: Optional[str], mode: bool, len: int):
+    # 先获得b50
+    b50_charts = await get_chartInfo_b50(qqid, username, '', [])
+    full_charts: List[Dict[str]] = []
+    delta_list: List[float] = []
+
+    delta: float = 0
+
+    for _d in b50_charts['sd']:
+        music = mai.total_list.by_id(_d['song_id'])
+        if music.stats == None:
+            continue
+        else:
+            full_charts.append(_d)
+            delta = music.stats[_d['level_index']].fit_diff - music.ds[_d['level_index']]
+            delta_list.append(delta)
+
+    for _d in b50_charts['dx']:
+        music = mai.total_list.by_id(_d['song_id'])
+        if music.stats == None:
+            continue
+        else:
+            full_charts.append(_d)
+            delta = music.stats[_d['level_index']].fit_diff - music.ds[_d['level_index']]
+            delta_list.append(delta)
+    
+    sorted_pairs = sorted(zip(full_charts, delta_list), key=lambda x: x[1])
+
+    ans_charts: List[Dict[str]] = []
+
+    cnt = 0
+    for item, _ in sorted_pairs:
+        ans_charts.append(item)
+        cnt = cnt + 1
+        if cnt >= len:
+            break
+    
+    return ans_charts
+
+
+# 绘制10图系列
+class Draw10(Draw):
+    def __init__(self, UserInfo: UserInfo, qqId: Optional[Union[int, str]] = None) -> None:
+        super().__init__(Image.open(maimaidir / 'buddies_bg_3.png').convert('RGBA'))
+        self.userName = UserInfo.nickname
+        self.plate = UserInfo.plate
+        self.addRating = UserInfo.additional_rating
+        self.Rating = UserInfo.rating
+        self.sdBest = UserInfo.charts.sd
+        self.dxBest = UserInfo.charts.dx
+        self.qqId = qqId
+
+    def _findRaPic(self) -> str:
+        if self.Rating < 1000:
+            num = '01'
+        elif self.Rating < 2000:
+            num = '02'
+        elif self.Rating < 4000:
+            num = '03'
+        elif self.Rating < 7000:
+            num = '04'
+        elif self.Rating < 10000:
+            num = '05'
+        elif self.Rating < 12000:
+            num = '06'
+        elif self.Rating < 13000:
+            num = '07'
+        elif self.Rating < 14000:
+            num = '08'
+        elif self.Rating < 14500:
+            num = '09'
+        elif self.Rating < 15000:
+            num = '10'
+        else:
+            num = '11'
+        return f'UI_CMN_DXRating_{num}.png'
+
+    def _findMatchLevel(self) -> str:
+        if self.addRating <= 10:
+            num = f'{self.addRating:02d}'
+        else:
+            num = f'{self.addRating + 1:02d}'
+        return f'UI_DNM_DaniPlate_{num}.png'
+    
+    async def whiledraw(self, data: Union[List[ChartInfo], List[PlayInfoDefault], List[PlayInfoDev]], delta: List[float], mode: bool) -> None:
+        # y为第一行坐标，dy为各行的间距
+        dy = 170
+        y = 400
+
+        TEXT_COLOR = [(255, 255, 255, 255), (255, 255, 255, 255), (255, 255, 255, 255), (255, 255, 255, 255), (138, 0, 226, 255)]
+
+        x = 70
+
+        for num, info in enumerate(data):
+            if num % 5 == 0:
+                x = 70
+                y += dy if num != 0 else 0
+            else:
+                x += 416
+
+            cover = Image.open(await maiApi.download_music_pictrue(info.song_id)).resize((135, 135))
+            version = Image.open(maimaidir / f'{info.type.upper()}.png').resize((55, 19))
+            if info.rate.islower():
+                rate = Image.open(maimaidir / f'UI_TTR_Rank_{score_Rank_l[info.rate]}.png').resize((95, 44))
+            else:
+                rate = Image.open(maimaidir / f'UI_TTR_Rank_{info.rate}.png').resize((95, 44))
+
+            self._im.alpha_composite(self._diff[info.level_index], (x, y))
+            self._im.alpha_composite(cover, (x + 5, y + 5))
+            self._im.alpha_composite(version, (x + 80, y + 141))
+            self._im.alpha_composite(rate, (x + 150, y + 98))
+            if info.fc:
+                fc = Image.open(maimaidir / f'UI_MSS_MBase_Icon_{fcl[info.fc]}.png').resize((45, 45))
+                self._im.alpha_composite(fc, (x + 246, y + 99))
+            if info.fs:
+                fs = Image.open(maimaidir / f'UI_MSS_MBase_Icon_{fsl[info.fs]}.png').resize((45, 45))
+                self._im.alpha_composite(fs, (x + 291, y + 99))
+
+            dxscore = sum(mai.total_list.by_id(str(info.song_id)).charts[info.level_index].notes) * 3
+            dxnum = dxScore(info.dxScore / dxscore * 100)
+            if dxnum:
+                self._im.alpha_composite(Image.open(maimaidir / f'UI_GAM_Gauge_DXScoreIcon_0{dxnum}.png'), (x + 335, y + 102))
+
+            self._tb.draw(x + 40, y + 148, 20, info.song_id, TEXT_COLOR[info.level_index], anchor='mm')
+            title = info.title
+            if coloumWidth(title) > 18:
+                title = changeColumnWidth(title, 17) + '...'
+            self._sy.draw(x + 155, y + 20, 20, title, TEXT_COLOR[info.level_index], anchor='lm')
+            self._tb.draw(x + 155, y + 50, 32, f'{info.achievements:.4f}%', TEXT_COLOR[info.level_index], anchor='lm')
+            self._tb.draw(x + 320, y + 55, 22, f' - {info.ra}', TEXT_COLOR[info.level_index], anchor='lm')
+            self._tb.draw(x + 338, y + 82, 20, f'{info.dxScore}/{dxscore}', TEXT_COLOR[info.level_index], anchor='mm')
+            if mode:
+                self._tb.draw(x + 155, y + 82, 22, f'{info.ds} ({round(delta[num], 3)})', TEXT_COLOR[info.level_index], anchor='lm')
+            else:
+                self._tb.draw(x + 155, y + 82, 22, f'{info.ds} ({round(-delta[num], 3)})', TEXT_COLOR[info.level_index], anchor='lm')
+
+    async def draw(self, mode: bool) -> Image.Image:
+
+        dx_rating = Image.open(maimaidir / self._findRaPic()).resize((300, 59))
+        Name = Image.open(maimaidir / 'Name.png')
+        MatchLevel = Image.open(maimaidir / self._findMatchLevel()).resize((134, 55))
+        ClassLevel = Image.open(maimaidir / 'UI_FBR_Class_00.png').resize((144, 87))
+        rating = Image.open(maimaidir / 'UI_CMN_Shougou_Rainbow.png').resize((454, 50))
+        icon = Image.open(maimaidir / 'UI_Icon_309503.png').resize((214, 214))
+        self._im.alpha_composite(icon, (98, 98))
+        if self.qqId:
+            try:
+                qqLogo = Image.open(BytesIO(await maiApi.qqlogo(self.qqId)))
+                self._im.alpha_composite(Image.new('RGBA', (203, 203), (255, 255, 255, 255)), (104, 104))
+                self._im.alpha_composite(qqLogo.convert('RGBA').resize((201, 201)), (105, 105))
+            except Exception:
+                pass
+        self._im.alpha_composite(dx_rating, (320, 112))
+        Rating = f'{self.Rating:05d}'
+        for n, i in enumerate(Rating):
+            self._im.alpha_composite(Image.open(maimaidir / f'UI_NUM_Drating_{i}.png').resize((28, 34)), (460 + 23 * n, 127))
+        self._im.alpha_composite(Name, (320, 190))
+        self._im.alpha_composite(MatchLevel, (635, 195))
+        self._im.alpha_composite(ClassLevel, (626, 95))
+        self._im.alpha_composite(rating, (320, 265))
+
+        self._sy.draw(335, 222, 36, self.userName, (0, 0, 0, 255), 'lm')
+        sdrating, dxrating = sum([_.ra for _ in self.sdBest]), sum([_.ra for _ in self.dxBest])
+        self._tb.draw(547, 285, 28, f'B35: {sdrating} + B15: {dxrating} = {self.Rating}', (0, 0, 0, 255), 'mm', 3, (255, 255, 255, 255))
+        self._mr.draw(1100, 772, 35, f'Designed by Yuri-YuzuChaN & BlueDeer233 | Generated by {maiconfig.botName} BOT', (0, 50, 100, 255), 'mm', 3, (255, 255, 255, 255))
+
+        charts_list: List[ChartInfo] = []
+        delta_list: List[float] = []
+        delta_avg: float = 0
+        delta_max: float = float('-inf')
+        delta_min: float = float('inf')
+        count: int = 0
+
+        for _d in self.sdBest:
+            music = mai.total_list.by_id(_d.song_id)
+            if music.stats == None:
+                continue
+            else:
+                charts_list.append(_d)
+                delta: float = music.stats[_d.level_index].fit_diff - music.ds[_d.level_index]
+                delta_list.append(delta)
+                delta_avg = delta_avg + delta
+                count = count + 1
+                if delta < delta_min:
+                    delta_min = delta
+                if delta > delta_max:
+                    delta_max = delta
+
+        for _d in self.dxBest:
+            music = mai.total_list.by_id(_d.song_id)
+            if music.stats == None:
+                continue
+            else:
+                charts_list.append(_d)
+                delta: float = music.stats[_d.level_index].fit_diff - music.ds[_d.level_index]
+                delta_list.append(delta)
+                delta_avg = delta_avg + delta
+                count = count + 1
+                if delta < delta_min:
+                    delta_min = delta
+                if delta > delta_max:
+                    delta_max = delta
+
+        delta_avg = delta_avg / count
+
+        judge_msg = ''
+
+        if mode:
+            self._sy.draw(1500, 150, 48, f'您的b50平均含金量为: {round(delta_avg, 3)}', (0, 50, 100, 255), 'mm', 3, (255, 255, 255, 255))
+            self._sy.draw(1500, 220, 48, f'含金量最大为: {round(delta_max, 3)}, 最小为: {round(delta_min, 3)}', (0, 50, 100, 255), 'mm', 3, (255, 255, 255, 255))
+
+            if -0.1 < delta_avg:
+                judge_msg = 'b50含金量很高, 太厉害啦!'
+            elif -0.2 <= delta_avg and delta_avg < -0.1:
+                judge_msg = 'b50含金量还可以!'
+            elif -0.3 <= delta_avg and delta_avg < -0.2:
+                judge_msg = 'b50含金量一般...'
+            elif delta_avg <= -0.3:
+                judge_msg = 'b50含金量有点低了...'
+
+        else:
+            self._sy.draw(1500, 150, 48, f'您的b50平均含水量为: {round(-delta_avg, 3)}', (0, 50, 100, 255), 'mm', 3, (255, 255, 255, 255))
+            self._sy.draw(1500, 220, 48, f'含水量最大为: {round(-delta_min, 3)}, 最小为: {round(-delta_max, 3)}', (0, 50, 100, 255), 'mm', 3, (255, 255, 255, 255))
+
+            if -0.1 < delta_avg:
+                judge_msg = 'b50含水量很低, 太厉害啦!'
+            elif -0.2 <= delta_avg and delta_avg < -0.1:
+                judge_msg = 'b50含水量不算高!'
+            elif -0.3 <= delta_avg and delta_avg < -0.2:
+                judge_msg = 'b50含水量一般...'
+            elif delta_avg <= -0.3:
+                judge_msg = 'b50含水量有点高了...'
+        
+        self._sy.draw(1500, 290, 48, judge_msg, (0, 50, 100, 255), 'mm', 3, (255, 255, 255, 255))
+        
+        sorted_pairs = sorted(zip(charts_list, delta_list), key=lambda x: x[1], reverse=mode)
+
+        ans_charts_list: List[ChartInfo] = []
+        ans_delta_list: List[float] = []
+
+        cnt = 0
+        for item, delta in sorted_pairs:
+            ans_charts_list.append(item)
+            ans_delta_list.append(delta)
+            cnt = cnt + 1
+            if cnt >= 10:
+                break
+        
+        await self.whiledraw(ans_charts_list, ans_delta_list, mode)
+
+        return self._im
+
+
+# 最有含金量 / 最没含金量
+async def gold_content(qqid: Optional[int] = None, username: Optional[str] = None, mode: bool = True) -> str:
+    obj = await maiApi.query_user('player', qqid=qqid, username=username)
+
+    max_id = 0
+    min_id = 0
+    max_name: str = ''
+    min_name: str = ''
+    max_delta: float = float('-inf')
+    min_delta: float = float('inf')
+
+    for _d in obj['charts']['sd']:
+        music = mai.total_list.by_id(_d['song_id'])
+        ds = music.ds[_d['level_index']]
+        fit = music.stats[_d['level_index']].fit_diff
+        delta = fit - ds
+        if delta > max_delta:
+            max_delta = delta
+            max_id = _d['song_id']
+            max_name = _d['title']
+    
+    for _d in obj['charts']['dx']:
+        music = mai.total_list.by_id(_d['song_id'])
+        ds = music.ds[_d['level_index']]
+        fit = ds
+        if music.stats != None:
+            fit = music.stats[_d['level_index']].fit_diff
+        delta = fit - ds
+        if delta > max_delta:
+            max_delta = delta
+            max_id = _d['song_id']
+            max_name = _d['title']
+        elif delta < min_delta:
+            min_delta = delta
+            min_id = _d['song_id']
+            min_name = _d['title']
+
+    id = 0
+    name: str = ''
+    delta: float = 0
+    command_str: str = ''
+    
+    if mode == True:
+        id = max_id
+        name = max_name
+        delta = max_delta
+        command_str = '有'
+    else:
+        id = min_id
+        name = min_name
+        delta = min_delta
+        command_str = '没'
+
+    msg = f'您的b50中最{command_str}含金量的曲目是\n'
+    msg += f'id-{id}: 「{name}」\n'
+    msg += f'拟合定数与真实定数差值为{round(delta, 2)}\n'
+
+    music = mai.total_list.by_id(id)
+    msg += await draw_music_info(music, qqid)
+
+    return msg
+
+
+# 含金量分析 / 含水量分析
+async def gold_analysis(qqid: Optional[int] = None, username: Optional[str] = None, mode: bool = True) -> str:
+    try:
+        if username:
+            qqid = None
+        
+        obj = await maiApi.query_user('player', qqid=qqid, username=username)
+        mai_info = UserInfo(**obj)
+        draw_best = Draw10(mai_info, qqid)
+        pic = await draw_best.draw(mode)
+        msg = MessageSegment.image(image_to_base64(pic))
+    except UserNotFoundError as e:
+        msg = str(e)
+    except UserDisabledQueryError as e:
+        msg = str(e)
+    except Exception as e:
+        log.error(traceback.format_exc())
+        msg = f'未知错误：{type(e)}\n请联系Bot管理员'
+    return msg
