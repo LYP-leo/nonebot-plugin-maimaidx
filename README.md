@@ -3,6 +3,7 @@
 </div>
 
 <div align='center'>
+</div>
 
 # nonebot-plugin-maimaidx
 
