@@ -313,6 +313,13 @@ def generateAchievementList(ds: float):
 
 # 获得b50的chartInfo
 async def get_chartInfo_b50(qqid: int, username: Optional[str], mode, mode_str):
+    '''
+    - `mode` 为匹配的项目
+    - `mode_str` 为匹配的字符串
+      如希望匹配所有 fc / fc+ 的歌曲，则 mode = 'fc', mode_str = ['fc', 'fcp', 'ap', 'app']
+      如希望匹配所有 ap / ap+ 的歌曲，则 mode = 'fc', mode_str = ['ap', 'app']
+      如希望匹配所有等级为 13 的歌曲，则 mode = 'level', mode_str = ['13']
+    '''
     data: Union[List[PlayInfoDefault], List[PlayInfoDev]] = []
 
     if maiconfig.maimaidxtoken:
@@ -330,22 +337,26 @@ async def get_chartInfo_b50(qqid: int, username: Optional[str], mode, mode_str):
     
     old: Optional[List[Dict[str]]] = []
     new: Optional[List[Dict[str]]] = []
+    delta_list:List[float] = []
 
     for _d in data:
 
         flag = True
 
+        # 判断是否为"丢人b50"
         if mode == 'worst':
             if _d.achievements < 80.0:
+                # 跳过不符合条件的乐曲
                 continue
         
-        # 只保留包含mode标签的乐曲
+        # 判断是否为条件b50, 并只保留包含mode标签的乐曲
         if mode == 'fc':
             flag = _d.fc in mode_str
         elif mode == 'level':
             flag = _d.level in mode_str
-            
+
         if not flag:
+            # 跳过不符合条件的乐曲
             continue
 
         music = mai.total_list.by_id(_d.song_id)
@@ -365,6 +376,25 @@ async def get_chartInfo_b50(qqid: int, username: Optional[str], mode, mode_str):
 
         if version_name == plate_to_version['祝'] or version_name == plate_to_version['双']:
             is_new = True
+
+        # 判断是否为"寸止b50"
+        if mode == 'limit':
+            delta = min(100.5000 - a, 100.0000 - a)
+            delta_list.append(delta)
+            if is_new:
+                # 新曲(b15)
+                if not ((99.9000 <= a and a < 100.0000) or (100.4000 <= a and a < 100.5000)):
+                    # 跳过不符合条件的乐曲
+                    delta_list.pop()
+                    continue
+                    
+            else:
+                # 旧曲(b35)
+                if not ((99.9500 <= a and a < 100.0000) or (100.4500 <= a and a < 100.5000)):
+                    # 跳过不符合条件的乐曲
+                    delta_list.pop()
+                    continue
+
         
         dxScore = 0
         if maiconfig.maimaidxtoken:
@@ -394,6 +424,12 @@ async def get_chartInfo_b50(qqid: int, username: Optional[str], mode, mode_str):
     if mode == 'worst':
         # 丢人b50按完成率升序
         old.sort(key=lambda _data: _data['achievements'], reverse=False)
+    # elif mode == 'limit':
+    #     # 寸止b50按差值排序
+    #     # 使用zip将a和b结合起来，然后根据b的顺序对组合后的列表进行排序
+    #     sorted_pairs = sorted(zip(delta_list, old), key=lambda x: x[0], reverse=False)
+    #     # 解压排序后的结果，得到按照b顺序的a列表
+    #     old = [x[1] for x in sorted_pairs]
     else:
         # 正常b50按ra降序
         old.sort(key=lambda _data: _data['ra'], reverse=True)
@@ -401,6 +437,9 @@ async def get_chartInfo_b50(qqid: int, username: Optional[str], mode, mode_str):
 
     if mode == 'worst':
         new.sort(key=lambda _data: _data['achievements'], reverse=False)
+    # elif mode == 'limit':
+    #     sorted_pairs = sorted(zip(delta_list, new), key=lambda x: x[0], reverse=False)
+    #     new = [x[1] for x in sorted_pairs]
     else:
         new.sort(key=lambda _data: _data['ra'], reverse=True)
     new = new[0:15]                                             # 取前15个
@@ -413,11 +452,6 @@ async def get_chartInfo_b50(qqid: int, username: Optional[str], mode, mode_str):
     return charts
 
 
-# mode 为匹配的项目
-# mode_str 为匹配的字符串
-# 如希望匹配所有 fc / fc+ 的歌曲，则 mode = 'fc', mode_str = ['fc', 'fcp', 'ap', 'app']
-# 如希望匹配所有 ap / ap+ 的歌曲，则 mode = 'fc', mode_str = ['ap', 'app']
-# 如希望匹配所有等级为 13 的歌曲，则 mode = 'level', mode_str = ['13']
 async def get_songs_by_ach(qqid: int, username: Optional[str], obj, mode, mode_str):
     # rating 先清零
     obj['rating'] = 0

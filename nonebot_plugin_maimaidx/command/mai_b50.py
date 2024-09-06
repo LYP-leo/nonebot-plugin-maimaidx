@@ -12,10 +12,13 @@ from ..libraries.maimaidx_music_info import *
 from ..libraries.maimaidx_player_score import *
 from ..libraries.maimaidx_update_plate import *
 
-# lvb50的优先级必须低于b50
+
+# 条件b50, 条件为'ap', 'ap+', 'fc', 'fc+'等, 其优先级必须低于b50
 lvb50   = on_regex(r'^/?[a-zA-Z0-9-~]*\+?b?50\s?.*$', re.IGNORECASE, priority=6)
-fitb50  = on_command('拟合b50', aliases={'拟合定数b50'}, priority=5)
-worst50  = on_command('丢人b50', aliases={'w50', 'worst50'}, priority=5)
+
+fitb50  = on_command('拟合b50', aliases={'拟合50', '拟合定数b50', '拟合定数50'}, priority=5)
+worst50  = on_command('丢人50', aliases={'w50', 'worst50'}, priority=5)
+limit50  = on_command('寸止b50', aliases={'寸止50', '寸b50', '寸50', 'czb50', 'cz50', 'cb50', 'c50'}, priority=5)
 
 command_list = ['b50', '/b50', 'B50', '/B50']
 
@@ -104,3 +107,11 @@ async def _(event: MessageEvent, matcher: Matcher, arg: Message = CommandArg()):
     if _q := get_at_qq(arg):
         qqid = _q
     await matcher.finish(await generate(qqid, username, 'worst', []), reply_message=True)
+
+@limit50.handle()
+async def _(event: MessageEvent, matcher: Matcher, arg: Message = CommandArg()):
+    qqid = get_at_qq(arg) or event.user_id
+    username = arg.extract_plain_text().split()
+    if _q := get_at_qq(arg):
+        qqid = _q
+    await matcher.finish(await generate(qqid, username, 'limit', []), reply_message=True)

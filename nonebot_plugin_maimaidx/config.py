@@ -11,7 +11,7 @@ class Config(BaseModel):
     
     maimaidxtoken: Optional[str]
     maimaidxpath: str
-    botName: str = list(driver.config.nickname)[0] if driver.config.nickname else 'Sakura'
+    botName: str = list(driver.config.nickname)[0] if driver.config.nickname else 'Homura'
 
 maiconfig = get_plugin_config(Config)
 
